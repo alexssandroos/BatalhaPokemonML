@@ -8,4 +8,3 @@ Using Machine Learning to predict the winner of a random pokemon battle.
 * Used a RandomForestClassifier with 100 estimators
 * Accuracy on Training set is 95 %.
 
-An article on it is in process. 
