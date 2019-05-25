@@ -7,7 +7,28 @@ combats=pd.read_csv('/home/alexssandroos/Público/BatalhaPokemonML/data/combats.
 #display first 10 rows
 pokemon.head(10)
 
- 
+#https://www.eurogamer.net/articles/2018-12-21-pokemon-go-type-chart-effectiveness-weaknesses
+type_vantagens = {
+  'Grass': ['Ground', 'Rock', 'Water'], 
+  'Fire': ['Bug', 'Steel', 'Grass', 'Ice'], 
+  'Water': ['Ground', 'Rock', 'Fire'], 
+  'Bug': ['Grass', 'Psychic', 'Dark'], 
+  'Normal' : [''], 
+  'Poison': ['Grass', 'Fairy'], 
+  'Electric': ['Flying', 'Water'],
+  'Ground': ['Poison', 'Rock', 'Steel', 'Fire', 'Electric'], 
+  'Fairy': ['Fighting', 'Dragon', 'Dark'], 
+  'Fighting' : ['Normal', 'Rock', 'Steel', 'Ice', 'Dark'], 
+  'Psychic': ['Fighting', 'Poison'], 
+  'Rock': ['Flying', 'Bug', 'Fire', 'Ice'], 
+  'Ghost': ['Ghost', 'Psychic'], 
+  'Ice': ['Flying', 'Ground', 'Grass', 'Dragon'],
+  'Dragon': ['Dragon'], 
+  'Dark': ['Ghost', 'Psychic'], 
+  'Steel': ['Rock', 'Ice', 'Fairy'], 
+  'Flying' : ['Fighting', 'Bug', 'Grass']}
+
+type_vantagens['Grass'].count('Rock') 
 #replace ids with pokemon names
 cols = ["First_pokemon","Second_pokemon","Winner"]
 new_combat_data=combats[cols].replace(pokemon.Name)
