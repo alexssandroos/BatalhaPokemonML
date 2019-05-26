@@ -11,11 +11,14 @@ def battle(first, second):
   type(dict_battle)
   return pd.DataFrame([dict_battle])
 
-def prever_batalha(modelo_treinado, primeiro_pokemon, segundo_pokemon):
+def prever_batalha(modelo_treinado, primeiro_pokemon, segundo_pokemon, pokemons_df):
   df = battle(primeiro_pokemon, segundo_pokemon)
   data, combat = apply_pipeline(combats, df, pokemon, tipo_vantagens)
   pred = modelo_treinado.predict(data.drop(columns=['Winner']))
   prob = modelo_treinado.predict_proba(data.drop(columns=['Winner']))
+  status = " vence " if pred_[0] == 1 else " perde "
+  num_proba = proba_[0][1] if pred_[0] == 1 else proba_[0][0]
+  print(pokemons_df.iloc[primeiro_pokemon]['Name'], ' ao desafiar ', pokemons_df.iloc[segundo_pokemon]['Name'], status, "com ", num_proba*100, '% de precisao.' )
   return pred, prob, data, combat
 
 tipo_vantagens = {
@@ -42,6 +45,15 @@ tipo_vantagens = {
 def has_type_advantage(type1, type2):
   return tipo_vantagens[type1].count(type2)
 
+def has_secondary_type(type):
+  return 1 if pd.isnull(type) else 0
+
+def featureImportances(rfInstance, X_train_columns):
+   feature_importance = pd.DataFrame(rfInstance.feature_importances_,\
+      index = X_train_columns, columns=['importance'])\
+         .sort_values('importance', ascending=False)
+   return feature_importance  
+
 def normalization(data_df):
     stats=["HP","Attack","Defense","Sp. Atk","Sp. Def","Speed", "Legendary"]
     stats_df=pokemon[stats].T.to_dict("list")
@@ -49,13 +61,17 @@ def normalization(data_df):
     two=data_df.Second_pokemon.map(stats_df)
     temp_list=[]
     for i in range(len(one)):
-        temp_list.append(np.array(one[i])-np.array(two[i]))
+        temp_list.append(np.array(one[i])>np.array(two[i]))
     new_test = pd.DataFrame(temp_list, columns=stats)
     return new_test
 
 def apply_pipeline(all_combats, df_combats, df_pokemon, type_strong_against):
   df_combats['first_type1'] = df_combats['First_pokemon'].replace(df_pokemon['Type 1'])
-  df_combats['second_type1'] = df_combats['Second_pokemon'].replace(df_pokemon['Type 1'])
+  df_combats['second_type1'] = df_combats['Second_pokemon'].replace(df_pokemon['Type 1'])  
+  df_combats['first_type2'] = df_combats['First_pokemon'].replace(df_pokemon['Type 2'])
+  df_combats['second_type2'] = df_combats['Second_pokemon'].replace(df_pokemon['Type 2'])
+  df_combats['has_secondary_type_first'] = df_combats.apply(lambda x: has_secondary_type(x[5]), axis=1)
+  df_combats['has_secondary_type_second'] = df_combats.apply(lambda x: has_secondary_type(x[6]), axis=1)
   df_combats['has_type_advantage_first'] = df_combats.apply(lambda x: has_type_advantage(x[3], x[4]), axis=1)
   df_combats['has_type_advantage_second'] = df_combats.apply(lambda x: has_type_advantage(x[4], x[3]), axis=1)
   
@@ -72,26 +88,30 @@ def apply_pipeline(all_combats, df_combats, df_pokemon, type_strong_against):
   df_combats['win_rate_biggest'] = df_combats['win_rate_first']>df_combats['win_rate_second']
   df_combats['win_rate_biggest'] = df_combats['win_rate_biggest'].map(boolean_map)
 
-  data=normalization(combats_final)
-  data = pd.concat([data,combats_final.Winner], axis=1)
-  data = pd.concat([data,combats_final.win_rate_first], axis=1)
-  data = pd.concat([data,combats_final.win_rate_second], axis=1)
-  data = pd.concat([data,combats_final.has_type_advantage_first], axis=1)
-  data = pd.concat([data,combats_final.has_type_advantage_second], axis=1)
+  data=normalization(df_combats)
+  data = pd.concat([data,df_combats.Winner], axis=1)
+  data = pd.concat([data,df_combats.win_rate_first], axis=1)
+  data = pd.concat([data,df_combats.win_rate_second], axis=1)
+  data = pd.concat([data,df_combats.has_type_advantage_first], axis=1)
+  data = pd.concat([data,df_combats.has_type_advantage_second], axis=1)
+  data = pd.concat([data,df_combats.has_secondary_type_first], axis=1)
+  data = pd.concat([data,df_combats.has_secondary_type_second], axis=1)
   data = data.replace([np.inf, -np.inf], 0)
   data = data.replace(np.nan, 0)
+  bool_cols = ["HP","Attack","Defense","Sp. Atk","Sp. Def","Speed", "Legendary"]
+  for col in bool_cols:
+    data[col] = data[col].map(boolean_map)
+    
+  return data, df_combats
 
-  return data, combats_final
 
 
-
-#import dataset
 pokemon=pd.read_csv('/home/alexssandroos/Público/BatalhaPokemonML/data/pokemon.csv',index_col=0)
 combats=pd.read_csv('/home/alexssandroos/Público/BatalhaPokemonML/data/combats.csv')
 
 data, train_combats = apply_pipeline(combats, combats, pokemon, tipo_vantagens)  
-x_label=data.drop("Winner",axis=1) #inputs
-y_label=data["Winner"] #outputs
+x_label=data.drop("Winner",axis=1) 
+y_label=data["Winner"] 
 
 
 from sklearn.model_selection import train_test_split
@@ -104,18 +124,20 @@ x_label= scaler.fit_transform(x_label)
 x_train, x_test, y_train, y_test = train_test_split(x_label, y_label, test_size=0.20, random_state=100)
 
 
-clf = RandomForestClassifier(n_estimators=200)
-model = clf.fit(x_train, y_train) #training
-pred = model.predict(x_test) #predicting on validation set
+clf = RandomForestClassifier(n_estimators=600)
+model = clf.fit(x_train, y_train) 
+pred = model.predict(x_test)
 print('Accuracy of ', accuracy_score(pred, y_test)*100)
 
+featureImportances(model,data.drop("Winner",axis=1).columns)
 
 data_valid=pd.read_csv('./data/tests.csv') 
 data_valid['Winner'] = 0
 
-pred_ , proba_ , data_, combat_= prever_batalha(model, 4, 10)  
+pred_ , proba_ , data_, combat_= prever_batalha(model, 561, 732, pokemon)  
 
-#replace ids with name
+
+
 new_test_data=data_valid[["First_pokemon","Second_pokemon"]].replace(pokemon.Name)
 new_test_data['Winner'] = 0
 
@@ -126,4 +148,3 @@ pred_proba = model.predict_proba(final_data.drop(columns=['Winner']))
 data_valid["Winner"]=pred[:10000]
 combats_name = data_valid[["First_pokemon","Second_pokemon"]].replace(pokemon.Name)
 combats_name[63:64]
-
