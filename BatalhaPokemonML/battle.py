@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import warnings; warnings.simplefilter('ignore')
+
 
 #utils 
 def battle(first, second):
@@ -14,7 +16,7 @@ def battle(first, second):
 def prever_batalha(modelo_treinado, primeiro_pokemon, segundo_pokemon, pokemons_df):
   df = battle(primeiro_pokemon, segundo_pokemon)
   data, combat = apply_pipeline(combats, df, pokemon, tipo_vantagens)
-  pred = modelo_treinado.predict(data.drop(columns=['Winner']))
+  pred = modelo_treinado.predict(data.drop(columns=['Winner'])/100)
   prob = modelo_treinado.predict_proba(data.drop(columns=['Winner']))
   status = " vence " if pred_[0] == 1 else " perde "
   num_proba = proba_[0][1] if pred_[0] == 1 else proba_[0][0]
@@ -61,13 +63,15 @@ def normalization(data_df):
     two=data_df.Second_pokemon.map(stats_df)
     temp_list=[]
     for i in range(len(one)):
-        temp_list.append(np.array(one[i])>np.array(two[i]))
+        temp_list.append(np.array(one[i])-np.array(two[i]))
     new_test = pd.DataFrame(temp_list, columns=stats)
     return new_test
 
 def apply_pipeline(all_combats, df_combats, df_pokemon, type_strong_against):
   df_combats['first_type1'] = df_combats['First_pokemon'].replace(df_pokemon['Type 1'])
   df_combats['second_type1'] = df_combats['Second_pokemon'].replace(df_pokemon['Type 1'])  
+  df_combats['first_speed'] = df_combats['First_pokemon'].replace(df_pokemon['Speed'])  
+  df_combats['second_speed'] = df_combats['Second_pokemon'].replace(df_pokemon['Speed'])  
   df_combats['first_type2'] = df_combats['First_pokemon'].replace(df_pokemon['Type 2'])
   df_combats['second_type2'] = df_combats['Second_pokemon'].replace(df_pokemon['Type 2'])
   df_combats['has_secondary_type_first'] = df_combats.apply(lambda x: has_secondary_type(x[5]), axis=1)
@@ -75,6 +79,7 @@ def apply_pipeline(all_combats, df_combats, df_pokemon, type_strong_against):
   df_combats['has_type_advantage_first'] = df_combats.apply(lambda x: has_type_advantage(x[3], x[4]), axis=1)
   df_combats['has_type_advantage_second'] = df_combats.apply(lambda x: has_type_advantage(x[4], x[3]), axis=1)
   
+
   df_combats.Winner[df_combats.Winner == df_combats.First_pokemon] = 0
   df_combats.Winner[df_combats.Winner == df_combats.Second_pokemon] = 1
 
@@ -87,6 +92,8 @@ def apply_pipeline(all_combats, df_combats, df_pokemon, type_strong_against):
   df_combats['win_rate_second'] = df_combats['Second_pokemon'].map(win_rates)     
   df_combats['win_rate_biggest'] = df_combats['win_rate_first']>df_combats['win_rate_second']
   df_combats['win_rate_biggest'] = df_combats['win_rate_biggest'].map(boolean_map)
+  df_combats['first_more_fast'] = df_combats['first_speed']>df_combats['second_speed']
+  df_combats['first_more_fast'] = df_combats['first_more_fast'].map(boolean_map)
 
   data=normalization(df_combats)
   data = pd.concat([data,df_combats.Winner], axis=1)
@@ -98,16 +105,16 @@ def apply_pipeline(all_combats, df_combats, df_pokemon, type_strong_against):
   data = pd.concat([data,df_combats.has_secondary_type_second], axis=1)
   data = data.replace([np.inf, -np.inf], 0)
   data = data.replace(np.nan, 0)
-  bool_cols = ["HP","Attack","Defense","Sp. Atk","Sp. Def","Speed", "Legendary"]
-  for col in bool_cols:
-    data[col] = data[col].map(boolean_map)
+  # bool_cols = ["HP","Attack","Defense","Sp. Atk","Sp. Def","Speed", "Legendary"]
+  # for col in bool_cols:
+  #   data[col] = data[col].map(boolean_map)
     
   return data, df_combats
 
 
 
 pokemon=pd.read_csv('/home/alexssandroos/Público/BatalhaPokemonML/data/pokemon.csv',index_col=0)
-combats=pd.read_csv('/home/alexssandroos/Público/BatalhaPokemonML/data/combats.csv')
+combats=pd.read_csv('/home/alexssandroos/Público/BatalhaPokemonML/data/combats_.csv')
 
 data, train_combats = apply_pipeline(combats, combats, pokemon, tipo_vantagens)  
 x_label=data.drop("Winner",axis=1) 
@@ -121,10 +128,10 @@ from sklearn.metrics import accuracy_score
 
 scaler = StandardScaler()
 x_label= scaler.fit_transform(x_label)
-x_train, x_test, y_train, y_test = train_test_split(x_label, y_label, test_size=0.20, random_state=100)
+x_train, x_test, y_train, y_test = train_test_split(x_label, y_label, test_size=0.25, random_state=100)
 
 
-clf = RandomForestClassifier(n_estimators=600)
+clf = RandomForestClassifier(n_estimators=100, n_jobs=-1 )
 model = clf.fit(x_train, y_train) 
 pred = model.predict(x_test)
 print('Accuracy of ', accuracy_score(pred, y_test)*100)
