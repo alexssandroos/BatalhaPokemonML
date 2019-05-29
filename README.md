@@ -9,4 +9,4 @@ Adiçoẽs :
 - Vantagem em tipo Primario
 
 Acurácia final do modelo :
-94%
+96%
