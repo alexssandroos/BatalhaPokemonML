@@ -13,15 +13,17 @@ def battle(first, second):
   type(dict_battle)
   return pd.DataFrame([dict_battle])
 
-def prever_batalha(modelo_treinado, primeiro_pokemon, segundo_pokemon, pokemons_df):
-  df = battle(primeiro_pokemon, segundo_pokemon)
-  data, combat = apply_pipeline(combats, df, pokemon, tipo_vantagens)
-  pred = modelo_treinado.predict(data.drop(columns=['Winner'])/100)
-  prob = modelo_treinado.predict_proba(data.drop(columns=['Winner']))
-  status = " vence " if pred_[0] == 1 else " perde "
-  num_proba = proba_[0][1] if pred_[0] == 1 else proba_[0][0]
-  print(pokemons_df.iloc[primeiro_pokemon]['Name'], ' ao desafiar ', pokemons_df.iloc[segundo_pokemon]['Name'], status, "com ", num_proba*100, '% de precisao.' )
-  return pred, prob, data, combat
+def prever_batalha(modelo_treinado, primeiro_pokemon, segundo_pokemon, pokemons_df, \
+  combats=combats, pokemon=pokemon, tipo_vantagens=tipo_vantagens):
+  df_ = battle(primeiro_pokemon, segundo_pokemon)
+  data_batalha, combat_batalha = apply_pipeline(combats, df_, pokemon, tipo_vantagens)
+  pred_batalha = modelo_treinado.predict(data_batalha.drop(columns=['Winner'])/100)
+  prob_batalha = modelo_treinado.predict_proba(data_batalha.drop(columns=['Winner']))
+  status_batalha = " vence " if pred_batalha[0] == 1 else " perde "
+  num_proba_batalha = prob_batalha[0][1] if pred_batalha[0] == 1 else prob_batalha[0][0]
+  print(pokemons_df.iloc[primeiro_pokemon]['Name'], ' ao desafiar ', \
+    pokemons_df.iloc[segundo_pokemon]['Name'], status_batalha, "com ", num_proba_batalha*100, '% de precisao.' )
+  return pred_batalha, prob_batalha, data_batalha, combat_batalha
 
 tipo_vantagens = {
   'Grass': ['Ground', 'Rock', 'Water'], 
@@ -78,8 +80,13 @@ def apply_pipeline(all_combats, df_combats, df_pokemon, type_strong_against):
   df_combats['has_secondary_type_second'] = df_combats.apply(lambda x: has_secondary_type(x[6]), axis=1)
   df_combats['has_type_advantage_first'] = df_combats.apply(lambda x: has_type_advantage(x[3], x[4]), axis=1)
   df_combats['has_type_advantage_second'] = df_combats.apply(lambda x: has_type_advantage(x[4], x[3]), axis=1)
+  df_combats['first_atk_power'] = df_combats['First_pokemon'].replace(df_pokemon['Attack'])\
+      + df_combats['First_pokemon'].replace(df_pokemon['Sp. Atk'])\
+      + df_combats['First_pokemon'].replace(df_pokemon['Speed'])
+  df_combats['second_atk_power'] = df_combats['Second_pokemon'].replace(df_pokemon['Attack'])\
+      + df_combats['Second_pokemon'].replace(df_pokemon['Sp. Atk'])\
+      + df_combats['Second_pokemon'].replace(df_pokemon['Speed'])
   
-
   df_combats.Winner[df_combats.Winner == df_combats.First_pokemon] = 0
   df_combats.Winner[df_combats.Winner == df_combats.Second_pokemon] = 1
 
@@ -103,6 +110,8 @@ def apply_pipeline(all_combats, df_combats, df_pokemon, type_strong_against):
   data = pd.concat([data,df_combats.has_type_advantage_second], axis=1)
   data = pd.concat([data,df_combats.has_secondary_type_first], axis=1)
   data = pd.concat([data,df_combats.has_secondary_type_second], axis=1)
+  data = pd.concat([data,df_combats.first_atk_power], axis=1)
+  data = pd.concat([data,df_combats.second_atk_power], axis=1)
   data = data.replace([np.inf, -np.inf], 0)
   data = data.replace(np.nan, 0)
   # bool_cols = ["HP","Attack","Defense","Sp. Atk","Sp. Def","Speed", "Legendary"]
@@ -113,8 +122,8 @@ def apply_pipeline(all_combats, df_combats, df_pokemon, type_strong_against):
 
 
 
-pokemon=pd.read_csv('/home/alexssandroos/Público/BatalhaPokemonML/data/pokemon.csv',index_col=0)
-combats=pd.read_csv('/home/alexssandroos/Público/BatalhaPokemonML/data/combats_.csv')
+pokemon=pd.read_csv('/home/alexssandroos/Público/BatalhaPokemonML/BatalhaPokemonML/data/pokemon.csv',index_col=0)
+combats=pd.read_csv('/home/alexssandroos/Público/BatalhaPokemonML/BatalhaPokemonML/data/combats.csv')
 
 data, train_combats = apply_pipeline(combats, combats, pokemon, tipo_vantagens)  
 x_label=data.drop("Winner",axis=1) 
@@ -138,20 +147,4 @@ print('Accuracy of ', accuracy_score(pred, y_test)*100)
 
 featureImportances(model,data.drop("Winner",axis=1).columns)
 
-data_valid=pd.read_csv('./data/tests.csv') 
-data_valid['Winner'] = 0
-
-pred_ , proba_ , data_, combat_= prever_batalha(model, 561, 732, pokemon)  
-
-
-
-new_test_data=data_valid[["First_pokemon","Second_pokemon"]].replace(pokemon.Name)
-new_test_data['Winner'] = 0
-
-#normalizing test data
-final_data, combats_new =apply_pipeline(a, pokemon, tipo_vantagens)  
-pred=model.predict(final_data.drop(columns=['Winner']))#final predictions
-pred_proba = model.predict_proba(final_data.drop(columns=['Winner']))
-data_valid["Winner"]=pred[:10000]
-combats_name = data_valid[["First_pokemon","Second_pokemon"]].replace(pokemon.Name)
-combats_name[63:64]
+pred_ , proba_ , data_, combat_= prever_batalha(model, 9, 30, pokemon) 
